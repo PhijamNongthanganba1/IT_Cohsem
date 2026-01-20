@@ -9,8 +9,13 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "fallback_secret")
 
 def get_db():
+    db_url = os.environ.get("DATABASE_URL")
+
+    if not db_url:
+        raise Exception("DATABASE_URL not set. Please configure Render environment variable.")
+
     return psycopg2.connect(
-        os.environ.get("DATABASE_URL"),
+        db_url,
         cursor_factory=psycopg2.extras.RealDictCursor,
         sslmode="require"
     )
