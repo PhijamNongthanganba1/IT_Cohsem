@@ -1,4 +1,4 @@
-1. Create MySQL database auth_db
+1. Create MySQL database cohsem_it
 2. Create users table (see SQL below)
 3. Install requirements: pip install -r requirements.txt
 4. Run: python app.py
