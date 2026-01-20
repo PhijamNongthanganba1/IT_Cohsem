@@ -67,11 +67,15 @@ def login():
 
     return render_template('login.html')
 
+
 @app.route('/dashboard')
 def dashboard():
     if 'user' not in session:
         return redirect(url_for('login'))
-    return render_template('dashboard.html', user=session['user'])
+
+    now = datetime.now().strftime("%d %B, %Y")
+    return render_template('dashboard.html', user=session['user'], now=now)
+
 
 @app.route('/logout')
 def logout():
