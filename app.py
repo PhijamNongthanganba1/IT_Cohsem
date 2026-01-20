@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session
-import mysql.connector
+import psycopg2
+import psycopg2.extras
+import os
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
@@ -7,12 +9,11 @@ app = Flask(__name__)
 app.secret_key = 'secret_key_123'
 
 def get_db():
-    return mysql.connector.connect(
-        host="dpg-d5nhhj3e5dus73f5jo50-a",
-        user="cohsem_it",
-        password="99cTk1bMuRI0NMHz5bDfseLXXEaHKhLF",  
-        database="cohsem_it"
+    return psycopg2.connect(
+        os.environ["postgresql://cohsem_it:99cTk1bMuRI0NMHz5bDfseLXXEaHKhLF@dpg-d5nhhj3e5dus73f5jo50-a/cohsem_it"],
+        cursor_factory=psycopg2.extras.RealDictCursor
     )
+
 
 @app.route('/')
 def home():
