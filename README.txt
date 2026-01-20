@@ -7,7 +7,7 @@ SQL:
 
 MariaDB [(none)]>
 CREATE DATABASE cohsem_IT;
-USE cohsem_IT;
+USE cohsem_it;
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
