@@ -8,10 +8,10 @@ app.secret_key = 'secret_key_123'
 
 def get_db():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",  
-        database="cohsem_IT"
+        host="dpg-d5nhhj3e5dus73f5jo50-a",
+        user="cohsem_it",
+        password="99cTk1bMuRI0NMHz5bDfseLXXEaHKhLF",  
+        database="cohsem_it"
     )
 
 @app.route('/')
