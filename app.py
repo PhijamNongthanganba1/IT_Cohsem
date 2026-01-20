@@ -1,96 +1,133 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, request, jsonify
 import psycopg2
-import psycopg2.extras
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "fallback_secret")
 
-def get_db():
-    db_url = os.environ.get("DATABASE_URL")
+# -----------------------------
+# Database connection
+# -----------------------------
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-    if not db_url:
-        raise Exception("DATABASE_URL not set. Please configure Render environment variable.")
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL not set. Please configure Render environment variable.")
 
-    return psycopg2.connect(
-        db_url,
-        cursor_factory=psycopg2.extras.RealDictCursor,
-        sslmode="require"
-    )
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
-@app.route('/')
-def home():
-    return redirect(url_for('login'))
+# -----------------------------
+# Create table automatically
+# -----------------------------
+def create_users_table():
+    conn = get_db_connection()
+    cur = conn.cursor()
 
-@app.route('/register', methods=['GET', 'POST'])
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(100) UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP
+        );
+    """)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# Run table creation on startup
+create_users_table()
+
+# -----------------------------
+# Register
+# -----------------------------
+@app.route("/register", methods=["POST"])
 def register():
-    if request.method == 'POST':
-        try:
-            username = request.form['username']
-            password = generate_password_hash(request.form['password'])
+    try:
+        data = request.json
+        username = data.get("username")
+        password = data.get("password")
 
-            db = get_db()
-            cur = db.cursor()
+        if not username or not password:
+            return jsonify({"error": "Username and password required"}), 400
 
-            cur.execute(
-                "INSERT INTO users (username, password, created_at) VALUES (%s, %s, %s)",
-                (username, password, datetime.now())
-            )
+        hashed_password = generate_password_hash(password)
 
-            db.commit()
-            cur.close()
-            db.close()
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-            return redirect(url_for('login'))
+        cur.execute(
+            "INSERT INTO users (username, password) VALUES (%s, %s)",
+            (username, hashed_password)
+        )
 
-        except Exception as e:
-            return f"REGISTER ERROR: {e}"
+        conn.commit()
+        cur.close()
+        conn.close()
 
-    return render_template('register.html')
+        return jsonify({"message": "User registered successfully"})
 
-@app.route('/login', methods=['GET', 'POST'])
+    except psycopg2.errors.UniqueViolation:
+        return jsonify({"error": "Username already exists"}), 409
+
+    except Exception as e:
+        return jsonify({"error": f"REGISTER ERROR: {str(e)}"}), 500
+
+
+# -----------------------------
+# Login
+# -----------------------------
+@app.route("/login", methods=["POST"])
 def login():
-    if request.method == 'POST':
-        try:
-            username = request.form['username']
-            password = request.form['password']
+    try:
+        data = request.json
+        username = data.get("username")
+        password = data.get("password")
 
-            db = get_db()
-            cur = db.cursor()
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-            cur.execute("SELECT * FROM users WHERE username=%s", (username,))
-            user = cur.fetchone()
+        cur.execute(
+            "SELECT id, password FROM users WHERE username = %s",
+            (username,)
+        )
 
-            cur.close()
-            db.close()
+        user = cur.fetchone()
 
-            if not user:
-                return "User not found"
+        if not user:
+            return jsonify({"error": "Invalid username or password"}), 401
 
-            if not check_password_hash(user['password'], password):
-                return "Wrong password"
+        user_id, stored_password = user
 
-            session['user'] = user['username']
-            return redirect(url_for('dashboard'))
+        if not check_password_hash(stored_password, password):
+            return jsonify({"error": "Invalid username or password"}), 401
 
-        except Exception as e:
-            return f"LOGIN ERROR: {e}"
+        # Update last login time
+        cur.execute(
+            "UPDATE users SET last_login = %s WHERE id = %s",
+            (datetime.now(), user_id)
+        )
 
-    return render_template('login.html')
+        conn.commit()
+        cur.close()
+        conn.close()
 
-@app.route('/dashboard')
-def dashboard():
-    if 'user' not in session:
-        return redirect(url_for('login'))
-    return render_template('dashboard.html', user=session['user'])
+        return jsonify({"message": "Login successful"})
 
-@app.route('/logout')
-def logout():
-    session.pop('user', None)
-    return redirect(url_for('login'))
+    except Exception as e:
+        return jsonify({"error": f"LOGIN ERROR: {str(e)}"}), 500
 
+
+# -----------------------------
+# Home
+# -----------------------------
+@app.route("/")
+def home():
+    return "Render PostgreSQL is connected successfully!"
+
+# -----------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
